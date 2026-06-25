@@ -196,7 +196,39 @@
         });
       }
     }
-
+    const html5QrCode = new Html5Qrcode("reader");
+    html5QrCode.start(
+      // Strictly enforce the back/environment camera using standard constraints
+      { facingMode: { exact: "environment" } },
+      { 
+        fps: 20, 
+        qrbox: { width: 250, height: 250 }, 
+        aspectRatio: 1.0,
+        // Provide a clean, direct resolution fallback path
+        videoConstraints: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      },
+      onScanSuccess
+    ).then(() => {
+      setMode('purchase');
+    }).catch(err => {
+      // Fallback: If 'exact' environment fails (rare), try normal environment selection
+      console.warn("Exact environment camera failed, trying fallback...", err);
+      
+      html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 20, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+        onScanSuccess
+      ).then(() => {
+        setMode('purchase');
+      }).catch(fallbackErr => {
+        statusMsg.innerText = "⚠️ Camera Blocked: Verify device settings.";
+        statusMsg.className = "text-xs text-center text-red-500 font-semibold mt-2";
+      });
+    });
     const html5QrCode = new Html5Qrcode("reader");
     html5QrCode.start(
       { facingMode: "environment" },
