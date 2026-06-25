@@ -98,7 +98,6 @@
       document.getElementById('terminalForm').reset();
       itemDisplay.classList.add('hidden');
 
-      // Both modes now lock the PO number input field to preserve automation metrics
       poInput.readOnly = true;
       poInput.classList.add('bg-slate-100');
 
@@ -204,7 +203,7 @@
       { fps: 15, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 },
       onScanSuccess
     ).then(() => {
-      setMode('purchase'); // Default initializing mode anchor
+      setMode('purchase');
     }).catch(err => {
       statusMsg.innerText = "⚠️ Camera Blocked: Verify device settings.";
       statusMsg.className = "text-xs text-center text-red-500 font-semibold mt-2";
