@@ -13,7 +13,333 @@
       border-radius: 0.75rem;
       overflow: hidden;
     }
+    #reader video {<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PO Warehouse Terminal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    #reader {
+      width: 100% !important;
+      border: none !important;
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
     #reader video {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+      border-radius: 0.75rem;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 p-4 font-sans max-w-md mx-auto">
+
+  <h1 class="text-xl font-bold text-center text-slate-800 mb-4">📦 Warehouse Management Terminal</h1>
+
+  <div class="flex bg-slate-200 p-1 rounded-xl mb-4 border border-slate-300">
+    <button id="btnPurchase" onclick="setMode('purchase')" class="flex-1 py-2.5 text-sm font-bold rounded-lg bg-white shadow-sm text-blue-600 transition-all">
+      🛒 Purchase Mode
+    </button>
+    <button id="btnReceive" onclick="setMode('receive')" class="flex-1 py-2.5 text-sm font-bold rounded-lg text-slate-600 transition-all">
+      📥 Receive Mode
+    </button>
+  </div>
+
+  <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200 mb-4">
+    <div id="reader" class="w-full bg-slate-100 overflow-hidden"></div>
+    <div class="flex items-center justify-between mt-2 px-1">
+      <p id="scan-status" class="text-xs text-slate-500 font-medium">Initializing camera stream...</p>
+      <button id="btnSwitchCamera" type="button" onclick="switchCamera()" class="hidden text-xs bg-slate-200 hover:bg-slate-300 active:scale-95 text-slate-700 font-bold py-1.5 px-3 rounded-lg transition-all">
+        🔄 Switch Camera
+      </button>
+    </div>
+  </div>
+
+  <form id="terminalForm" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Scanned Barcode</label>
+      <input type="text" id="scannedBarcode" readonly required
+             class="w-full mt-1 p-2.5 bg-slate-100 border border-slate-300 rounded-lg text-slate-700 font-mono focus:outline-none">
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label id="poLabel" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">PO Number</label>
+        <input type="text" id="poNumber" readonly required placeholder="Awaiting Scan..."
+               class="w-full mt-1 p-2.5 bg-slate-100 border border-slate-300 rounded-lg text-slate-700 font-bold focus:outline-none">
+      </div>
+      <div>
+        <label id="qtyLabel" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Qty to Order</label>
+        <input type="number" id="receivedQty" value="1" min="1" required
+               class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+    </div>
+
+    <div id="purchaseFields" class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Item Name Description</label>
+        <input type="text" id="itemName" placeholder="Ex: Mini Eraser Pack"
+               class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+    </div>
+
+    <div id="itemDisplay" class="hidden p-2.5 text-xs rounded-lg font-medium text-center"></div>
+
+    <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-lg shadow-sm transition-all">
+      Scan Code First
+    </button>
+  </form>
+
+  <script>
+    // =========================================================
+    // PASTE YOUR EXTRACTED APPS SCRIPT DEPLOYMENT WEB URL BELOW
+    // =========================================================
+    const API_URL = "https://script.google.com/macros/s/AKfycbyCAfmF6hgDSZhCMr8m6gcaTYRtcwsEkeP9Wh2PlA6UN1d-j1Va7DlhaK8ocdT3lSHO/exec";
+
+    let currentMode = 'purchase';
+    let lastScannedCode = '';
+    let html5QrCode;
+    let availableCameras = [];
+    let currentCameraIndex = 0;
+
+    const statusMsg = document.getElementById('scan-status');
+    const barcodeInput = document.getElementById('scannedBarcode');
+    const poInput = document.getElementById('poNumber');
+    const qtyInput = document.getElementById('receivedQty');
+    const itemInput = document.getElementById('itemName');
+    const purchaseFields = document.getElementById('purchaseFields');
+    const itemDisplay = document.getElementById('itemDisplay');
+    const submitBtn = document.getElementById('submitBtn');
+
+    function setMode(mode) {
+      currentMode = mode;
+      lastScannedCode = '';
+      document.getElementById('terminalForm').reset();
+      itemDisplay.classList.add('hidden');
+
+      poInput.readOnly = true;
+      poInput.classList.add('bg-slate-100');
+
+      if (mode === 'purchase') {
+        document.getElementById('btnPurchase').className = "flex-1 py-2.5 text-sm font-bold rounded-lg bg-white shadow-sm text-blue-600 transition-all";
+        document.getElementById('btnReceive').className = "flex-1 py-2.5 text-sm font-bold rounded-lg text-slate-600 transition-all";
+        
+        purchaseFields.classList.remove('hidden');
+        poInput.placeholder = "Auto-generating...";
+        document.getElementById('qtyLabel').innerText = "Qty to Order";
+        resetButtonState(true, "Scan Code First");
+      } else {
+        document.getElementById('btnPurchase').className = "flex-1 py-2.5 text-sm font-bold rounded-lg text-slate-600 transition-all";
+        document.getElementById('btnReceive').className = "flex-1 py-2.5 text-sm font-bold rounded-lg bg-white shadow-sm text-blue-600 transition-all";
+        
+        purchaseFields.classList.add('hidden');
+        poInput.placeholder = "Auto-detecting...";
+        document.getElementById('qtyLabel').innerText = "Qty to Receive";
+        resetButtonState(true, "Scan Code First");
+      }
+      updateStatusText();
+    }
+
+    function updateStatusText() {
+      if (!html5QrCode || !html5QrCode.isScanning) return;
+      if (currentMode === 'purchase') {
+        statusMsg.innerText = "🛒 Ready to scan item to generate a new Purchase Order...";
+        statusMsg.className = "text-xs text-blue-600 font-medium mt-2";
+      } else {
+        statusMsg.innerText = "📥 Awaiting target shipment item scan...";
+        statusMsg.className = "text-xs text-amber-600 font-medium mt-2";
+      }
+    }
+
+    function resetButtonState(isDisabled, text, variant = 'slate') {
+      submitBtn.disabled = isDisabled;
+      submitBtn.innerText = text;
+      if (isDisabled) {
+        submitBtn.className = "w-full bg-slate-400 text-white font-bold py-3.5 rounded-lg cursor-not-allowed transition-all";
+      } else if (variant === 'green') {
+        submitBtn.className = "w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-lg shadow-sm cursor-pointer transition-all";
+      } else {
+        submitBtn.className = "w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-lg shadow-sm cursor-pointer transition-all";
+      }
+    }
+
+    async function postData(payload) {
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+        return await response.json();
+      } catch (err) {
+        console.error("Networking failure: ", err);
+        return { success: false, message: "Network connection error." };
+      }
+    }
+
+    function onScanSuccess(decodedText) {
+      if (decodedText === lastScannedCode) return;
+      lastScannedCode = decodedText;
+      
+      barcodeInput.value = decodedText;
+      if (navigator.vibrate) navigator.vibrate(75);
+
+      if (currentMode === 'purchase') {
+        statusMsg.innerText = "🔄 Fetching next available PO Allocation Number...";
+        statusMsg.className = "text-xs text-center text-blue-600 font-medium mt-2";
+        
+        postData({ action: "getNextPo" }).then(res => {
+          if (res.success) {
+            poInput.value = res.nextPo;
+            statusMsg.innerText = "🎯 Ready to allocate new purchase entry!";
+            statusMsg.className = "text-xs text-center text-green-600 font-bold mt-2";
+            resetButtonState(false, "Confirm Purchase Allocation", "blue");
+          } else {
+            alert("Could not generate PO Number automatically.");
+          }
+        });
+      } else {
+        statusMsg.innerText = "🔍 Syncing with active inventory ledger...";
+        statusMsg.className = "text-xs text-center text-blue-600 font-medium mt-2";
+        itemDisplay.classList.add('hidden');
+        resetButtonState(true, "Scanning...");
+
+        postData({ action: "lookup", barcode: decodedText }).then(res => {
+          if (res.success) {
+            poInput.value = res.poNumber;
+            itemDisplay.innerText = "Verified Item: " + res.itemName;
+            itemDisplay.className = "block p-2.5 bg-green-50 text-green-800 text-xs rounded-lg font-semibold text-center border border-green-200";
+            statusMsg.innerText = "🎯 Active Match Confirmed!";
+            statusMsg.className = "text-xs text-center text-green-600 font-bold mt-2";
+            resetButtonState(false, "Confirm Receipt Log", "green");
+          } else {
+            poInput.value = "";
+            itemDisplay.innerText = "Error: " + res.message;
+            itemDisplay.className = "block p-2.5 bg-red-50 text-red-800 text-xs rounded-lg font-semibold text-center border border-red-200";
+            statusMsg.innerText = "❌ Match routing denied.";
+            statusMsg.className = "text-xs text-center text-red-600 font-bold mt-2";
+            resetButtonState(true, "Scan Verified Code First");
+          }
+        });
+      }
+    }
+
+    // --- IMMUTABLE SYSTEM BOOT MATRIX ---
+    // 1. Run Layout rendering instantly so the interface never freezes again
+    setMode('purchase');
+
+    // 2. Safely initialize scanner library instance
+    html5QrCode = new Html5Qrcode("reader");
+
+    // 3. Request camera tracks asynchronously without blockading the layout thread
+    initializeCameraHardware();
+
+    async function initializeCameraHardware() {
+      try {
+        statusMsg.innerText = "📷 Requesting hardware camera tracks...";
+        availableCameras = await Html5Qrcode.getCameras();
+        
+        if (availableCameras && availableCameras.length > 0) {
+          // Expose the manual bypass switch if multiple modules exist
+          if (availableCameras.length > 1) {
+            document.getElementById('btnSwitchCamera').classList.remove('hidden');
+          }
+
+          // Scan device array for matching back lenses
+          let backCamIndex = availableCameras.findIndex(device => 
+            device.label.toLowerCase().includes('back') || 
+            device.label.toLowerCase().includes('rear') ||
+            device.label.toLowerCase().includes('environment')
+          );
+
+          // Route to back lens, otherwise fallback to the last array entry
+          currentCameraIndex = backCamIndex !== -1 ? backCamIndex : availableCameras.length - 1;
+          await executeCameraSession(availableCameras[currentCameraIndex].id);
+        } else {
+          // Fallback path if browser denies permission array mapping
+          await executeCameraSession({ facingMode: "environment" });
+        }
+      } catch (err) {
+        console.warn("Camera array trace dropped. Booting direct environment engine...", err);
+        try {
+          await executeCameraSession({ facingMode: "environment" });
+        } catch (fallbackErr) {
+          statusMsg.innerText = "⚠️ Camera Denied: Check permissions or clear site settings.";
+          statusMsg.className = "text-xs text-center text-red-500 font-semibold mt-2";
+        }
+      }
+    }
+
+    async function executeCameraSession(cameraConfiguration) {
+      if (html5QrCode.isScanning) {
+        await html5QrCode.stop();
+      }
+
+      return html5QrCode.start(
+        cameraConfiguration,
+        { 
+          fps: 20, 
+          qrbox: { width: 250, height: 250 }, 
+          aspectRatio: 1.0
+        },
+        onScanSuccess
+      ).then(() => {
+        updateStatusText();
+      }).catch(err => {
+        console.error("Session crash caught: ", err);
+        statusMsg.innerText = "⚠️ Stream failed. Tap 'Switch Camera' to change tracks.";
+        statusMsg.className = "text-xs text-center text-amber-600 font-medium mt-2";
+      });
+    }
+
+    async function switchCamera() {
+      if (!availableCameras || availableCameras.length <= 1) return;
+      
+      currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
+      const selectedId = availableCameras[currentCameraIndex].id;
+      
+      statusMsg.innerText = "🔄 Remapping camera pipeline fields...";
+      statusMsg.className = "text-xs text-center text-slate-500 font-medium mt-2";
+      
+      try {
+        await executeCameraSession(selectedId);
+      } catch (e) {
+        console.error("Camera hot-swap failed: ", e);
+      }
+    }
+
+    // Form Processing Log Execution Block
+    document.getElementById('terminalForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const priorText = submitBtn.innerText;
+      resetButtonState(true, "Transmitting data packages...");
+
+      const dataPayload = {
+        action: currentMode,
+        scannedBarcode: barcodeInput.value,
+        poNumber: poInput.value,
+        itemName: itemInput.value,
+        qty: qtyInput.value,
+        receivedQty: qtyInput.value
+      };
+
+      postData(dataPayload).then(res => {
+        if (res.success) {
+          alert(res.message);
+          setMode(currentMode);
+        } else {
+          alert("Processing warning: " + res.message);
+          resetButtonState(false, priorText);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
       width: 100% !important;
       height: 100% !important;
       object-fit: cover !important;
