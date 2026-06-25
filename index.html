@@ -205,13 +205,11 @@
       }
     }
 
-    // --- PROTECTED LIFECYCLE INITIALIZATION BOOTLOADER ---
+    // --- INITIALIZATION BOOTLOADER ---
     document.addEventListener("DOMContentLoaded", () => {
       try {
-        // Render UI modes instantly so interface components are never locked out
         setMode('purchase');
 
-        // Confirm library was injected via CDN correctly
         if (typeof Html5Qrcode === 'undefined') {
           throw new Error("Scanner library failed to load from CDN resource.");
         }
@@ -220,7 +218,6 @@
         initializeCameraHardware();
 
       } catch (globalError) {
-        // Direct print failure onto visual space for manual diagnostics
         statusMsg.innerText = "🚨 System Error: " + globalError.message;
         statusMsg.className = "text-xs text-center text-red-500 font-semibold mt-2";
       }
@@ -228,40 +225,51 @@
 
     async function initializeCameraHardware() {
       try {
-        statusMsg.innerText = "📷 Requesting hardware camera permissions...";
+        statusMsg.innerText = "📷 Tuning hardware camera arrays...";
         
-        // Strategy: Force launch camera via general constraints first to request permission cleanly
-        await executeCameraSession({ facingMode: "environment" });
+        // Fetch full camera tracking profiles
+        let devices = await Html5Qrcode.getCameras();
         
-        // Once authorized, map alternative camera hardware tracks to populate user manual overrides
-        try {
-          availableCameras = await Html5Qrcode.getCameras();
-          if (availableCameras && availableCameras.length > 1) {
-            document.getElementById('btnSwitchCamera').classList.remove('hidden');
-            // Sync pointer index position
-            let backCamIdx = availableCameras.findIndex(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear'));
-            if (backCamIdx !== -1) currentCameraIndex = backCamIdx;
-          }
-        } catch(e) {
-          console.warn("Could not catalog secondary lenses:", e);
+        // If profile details are blank/unauthorized, trigger a quick system request to unlock them
+        if (!devices || devices.length === 0 || !devices[0].label) {
+          await executeCameraSession({ facingMode: "environment" });
+          devices = await Html5Qrcode.getCameras();
         }
-
-      } catch (err) {
-        console.warn("Standard environmental camera launch failed, attempting hardware ID enumeration...", err);
         
-        try {
-          availableCameras = await Html5Qrcode.getCameras();
-          if (availableCameras && availableCameras.length > 0) {
-            if (availableCameras.length > 1) {
-              document.getElementById('btnSwitchCamera').classList.remove('hidden');
-            }
-            currentCameraIndex = availableCameras.length - 1; 
-            await executeCameraSession(availableCameras[currentCameraIndex].id);
-          } else {
-            throw new Error("No physical camera hardware devices detected.");
+        if (devices && devices.length > 0) {
+          availableCameras = devices;
+          if (availableCameras.length > 1) {
+            document.getElementById('btnSwitchCamera').classList.remove('hidden');
           }
+          
+          // Filter out explicitly identified rear environmental lenses
+          let backCams = availableCameras.filter(d => 
+            d.label.toLowerCase().includes('back') || 
+            d.label.toLowerCase().includes('rear') ||
+            d.label.toLowerCase().includes('environment')
+          );
+          
+          if (backCams.length > 0) {
+            // TARGET PRIORITIZATION STRATEGY:
+            // If the phone exposes multiple rear options, choose the second rear camera 
+            // entry to target the high-res auto-focus main lens instead of the wide/macro tracking lens.
+            let bestCam = backCams.length > 1 ? backCams[1] : backCams[0];
+            currentCameraIndex = availableCameras.findIndex(d => d.id === bestCam.id);
+          } else {
+            // General hard-index shift strategy if labels are generic text numbers
+            currentCameraIndex = availableCameras.length > 1 ? 1 : 0;
+          }
+          
+          await executeCameraSession(availableCameras[currentCameraIndex].id);
+        } else {
+          await executeCameraSession({ facingMode: "environment" });
+        }
+      } catch (err) {
+        console.warn("Array scanning bypassed, jumping to direct environment routing:", err);
+        try {
+          await executeCameraSession({ facingMode: "environment" });
         } catch (fallbackErr) {
-          statusMsg.innerText = "❌ Camera Blocked: " + fallbackErr.message + " (Check HTTPS or Site Permissions)";
+          statusMsg.innerText = "❌ Camera Blocked: Check site permissions.";
           statusMsg.className = "text-xs text-center text-red-500 font-semibold mt-2";
         }
       }
