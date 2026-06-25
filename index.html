@@ -1,364 +1,332 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Decoupled Inventory Tracker</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <style>
-        /* Interactive Scanning Guide Layer styles */
-        .scanner-container {
-            position: relative;
-            overflow: hidden;
-        }
-        .laser-guide {
-            position: absolute;
-            top: 50%;
-            left: 5%;
-            width: 90%;
-            height: 2px;
-            background-color: #ef4444;
-            box-shadow: 0 0 8px #ef4444;
-            z-index: 10;
-            transform: translateY(-50%);
-            pointer-events: none;
-        }
-        #reader video {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PO Warehouse Terminal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    #reader {
+      width: 100% !important;
+      border: none !important;
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+    #reader video {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+      border-radius: 0.75rem;
+    }
+  </style>
 </head>
-<body class="bg-gray-900 text-gray-100 font-sans min-h-screen p-4 flex flex-col items-center">
- 
-    <main class="w-full max-w-lg bg-gray-800 rounded-xl shadow-2xl border border-gray-700 p-6 space-y-6">
-        <h1 class="text-2xl font-bold text-center tracking-wide text-indigo-400">Inventory Sync Core</h1>
- 
-        <div class="flex bg-gray-900 p-1 rounded-lg border border-gray-700">
-            <button id="togglePurchased" class="flex-1 py-2 text-sm font-medium rounded-md transition-all bg-indigo-600 text-white" onclick="setMode('purchased')">
-                Purchased Mode
-           </button>
-            <button id="toggleReceived" class="flex-1 py-2 text-sm font-medium rounded-md transition-all text-gray-400 hover:text-white" onclick="setMode('received')">
-                Received Mode
-           </button>
-        </div>
- 
-        <div class="space-y-2">
-            <div class="flex items-center justify-between">
-                <label class="block text-xs font-semibold uppercase tracking-wider text-gray-400">Hardware Scanning Engine</label>
-                <button id="btnSwitchCamera" type="button" onclick="switchCamera()" class="hidden text-xs bg-gray-700 hover:bg-gray-600 active:scale-95 text-indigo-400 font-bold py-1 px-2.5 rounded transition-all">
-                    🔄 Switch Camera
-                </button>
-            </div>
-            
-            <div class="scanner-container bg-black rounded-lg aspect-video border-2 border-gray-700">
-                <div id="reader" class="w-full h-full"></div>
-                <div class="laser-guide"></div>
-            </div>
-            
-            <div class="flex items-center space-x-3 bg-gray-900 p-3 rounded-lg border border-gray-700 mt-2">
-                <span class="text-xs text-gray-400 font-medium">Video Scale (Zoom):</span>
-                <input id="zoomSlider" type="range" min="1" max="5" step="0.1" value="1" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="applyZoom(this.value)">
-                <span id="zoomVal" class="text-xs text-indigo-400 font-bold w-8 text-right">1.0x</span>
-            </div>
-            <p id="scan-status" class="text-[11px] text-gray-400 text-center italic">Tip: Back away from the object to secure lens focus and adjust the video scale above.</p>
-        </div>
- 
-        <form id="entryForm" onsubmit="submitTransaction(event)" class="space-y-4">
-            <div class="grid grid-cols-2 gap-4">
-               <div>
-                   <label class="block text-xs font-medium text-gray-400 mb-1">PO Code / Scan Target</label>
-                   <input type="text" id="formCode" required class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm focus:outline-none focus:border-indigo-500 text-gray-300">
-               </div>
-               <div>
-                   <label class="block text-xs font-medium text-gray-400 mb-1">1D Barcode Value</label>
-                   <input type="text" id="formBarcode" required class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm focus:outline-none focus:border-indigo-500 text-gray-300">
-               </div>
-            </div>
- 
-           <div>
-               <label class="block text-xs font-medium text-gray-400 mb-1">Item Name</label>
-               <input type="text" id="formName" required class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm focus:outline-none focus:border-indigo-500 text-gray-300">
-           </div>
- 
-            <div class="grid grid-cols-2 gap-4">
-               <div>
-                   <label class="block text-xs font-medium text-gray-400 mb-1">Quantity</label>
-                   <input type="number" id="formQty" min="1" value="1" required class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm focus:outline-none focus:border-indigo-500 text-gray-300">
-               </div>
-               <div>
-                   <label class="block text-xs font-medium text-gray-400 mb-1">Condition Status</label>
-                   <select id="formCondition" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm focus:outline-none focus:border-indigo-500 text-gray-300">
-                       <option value="Good">Good</option>
-                       <option value="Not Good">Not Good</option>
-                   </select>
-               </div>
-            </div>
- 
-            <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 font-semibold text-sm py-3 rounded-lg shadow transition-colors mt-2">
-                Commit Operations Transaction
-           </button>
-        </form>
-    </main>
- 
-    <script>
-        const API_URL = "https://script.google.com/macros/s/XXXXXX/exec";
- 
-        let currentMode = 'purchased';
-        let html5QrcodeScanner = null;
-        let activeVideoTrack = null;
-        let availableCameras = [];
-        let currentCameraIndex = 0;
- 
-        let lastScannedBarcode = null;
-        let lastScanTimestamp = 0;
-        const DEBOUNCE_THRESHOLD = 2500; // 2.5 seconds protection barrier
- 
-        const statusMsg = document.getElementById('scan-status');
+<body class="bg-slate-50 p-4 font-sans max-w-md mx-auto">
 
-        function setMode(mode) {
-            currentMode = mode;
-            const pBtn = document.getElementById('togglePurchased');
-            const rBtn = document.getElementById('toggleReceived');
-            const nameInput = document.getElementById('formName');
-            
-            if(mode === 'purchased') {
-                pBtn.className = "flex-1 py-2 text-sm font-medium rounded-md transition-all bg-indigo-600 text-white";
-                rBtn.className = "flex-1 py-2 text-sm font-medium rounded-md transition-all text-gray-400 hover:text-white";
-                nameInput.disabled = false;
-                nameInput.placeholder = "Enter product name manually";
-            } else {
-                rBtn.className = "flex-1 py-2 text-sm font-medium rounded-md transition-all bg-indigo-600 text-white";
-                pBtn.className = "flex-1 py-2 text-sm font-medium rounded-md transition-all text-gray-400 hover:text-white";
-                nameInput.disabled = true;
-                nameInput.placeholder = "Awaiting automated lookup...";
-            }
-            clearForm();
-        }
- 
-        function initScanner() {
-            try {
-                // Ensure layout elements render immediately
-                setMode('purchased');
+  <h1 class="text-xl font-bold text-center text-slate-800 mb-4">📦 Warehouse Management Terminal</h1>
 
-                if (typeof Html5Qrcode === 'undefined') {
-                    throw new Error("Scanner engine library failed to compile.");
-                }
+  <div class="flex bg-slate-200 p-1 rounded-xl mb-4 border border-slate-300">
+    <button id="btnPurchase" onclick="setMode('purchase')" class="flex-1 py-2.5 text-sm font-bold rounded-lg bg-white shadow-sm text-blue-600 transition-all">
+      🛒 Purchase Mode
+    </button>
+    <button id="btnReceive" onclick="setMode('receive')" class="flex-1 py-2.5 text-sm font-bold rounded-lg text-slate-600 transition-all">
+      📥 Receive Mode
+    </button>
+  </div>
 
-                html5QrcodeScanner = new Html5Qrcode("reader");
-                initializeCameraHardware();
+  <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200 mb-4">
+    <div id="reader" class="w-full bg-slate-100 overflow-hidden"></div>
+    <div class="flex items-center justify-between mt-2 px-1">
+      <p id="scan-status" class="text-xs text-slate-500 font-medium">Initializing system components...</p>
+      <button id="btnSwitchCamera" type="button" onclick="switchCamera()" class="hidden text-xs bg-slate-200 hover:bg-slate-300 active:scale-95 text-slate-700 font-bold py-1.5 px-3 rounded-lg transition-all">
+        🔄 Switch Camera
+      </button>
+    </div>
+  </div>
 
-            } catch (err) {
-                statusMsg.innerText = "🚨 Engine Error: " + err.message;
-                statusMsg.className = "text-[11px] text-red-400 font-semibold text-center";
-            }
-        }
+  <form id="terminalForm" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Scanned Barcode</label>
+      <input type="text" id="scannedBarcode" readonly required
+             class="w-full mt-1 p-2.5 bg-slate-100 border border-slate-300 rounded-lg text-slate-700 font-mono focus:outline-none">
+    </div>
 
-        async function initializeCameraHardware() {
-            try {
-                statusMsg.innerText = "📷 Analyzing available hardware lens options...";
-                
-                // Pull hardware tracks profile layout
-                let devices = await Html5Qrcode.getCameras();
-                
-                // If browser permissions block initialization array descriptions, bypass immediately to register access
-                if (!devices || devices.length === 0 || !devices[0].label) {
-                    await executeCameraSession({ facingMode: "environment" });
-                    devices = await Html5Qrcode.getCameras();
-                }
-                
-                if (devices && devices.length > 0) {
-                    availableCameras = devices;
-                    if (availableCameras.length > 1) {
-                        document.getElementById('btnSwitchCamera').classList.remove('hidden');
-                    }
-                    
-                    // Filter targeted rear high-definition units
-                    let backCams = availableCameras.filter(d => 
-                        d.label.toLowerCase().includes('back') || 
-                        d.label.toLowerCase().includes('rear') ||
-                        d.label.toLowerCase().includes('environment')
-                    );
-                    
-                    if (backCams.length > 0) {
-                        // TARGETING MATRICES SELECTION ORDER:
-                        // Force selects the SECOND back camera profile if multiple rear tracks exist 
-                        // to prioritize the crystal clear macro/main auto-focus module.
-                        let prioritizedLens = backCams.length > 1 ? backCams[1] : backCams[0];
-                        currentCameraIndex = availableCameras.findIndex(d => d.id === prioritizedLens.id);
-                    } else {
-                        currentCameraIndex = availableCameras.length > 1 ? 1 : 0;
-                    }
-                    
-                    await executeCameraSession(availableCameras[currentCameraIndex].id);
-                } else {
-                    await executeCameraSession({ facingMode: "environment" });
-                }
-            } catch (err) {
-                console.warn("Hardware mapping array lost, entering environment loop:", err);
-                try {
-                    await executeCameraSession({ facingMode: "environment" });
-                } catch (fallbackErr) {
-                    statusMsg.innerText = "❌ Camera Blocked: Verify permissions or HTTPS parameters.";
-                    statusMsg.className = "text-[11px] text-red-400 font-semibold text-center";
-                }
-            }
-        }
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label id="poLabel" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">PO Number</label>
+        <input type="text" id="poNumber" readonly required placeholder="Awaiting Scan..."
+               class="w-full mt-1 p-2.5 bg-slate-100 border border-slate-300 rounded-lg text-slate-700 font-bold focus:outline-none">
+      </div>
+      <div>
+        <label id="qtyLabel" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Qty to Order</label>
+        <input type="number" id="receivedQty" value="1" min="1" required
+               class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+    </div>
 
-        async function executeCameraSession(cameraConfiguration) {
-            if (html5QrcodeScanner.isScanning) {
-                await html5QrcodeScanner.stop();
-            }
+    <div id="purchaseFields" class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Item Name Description</label>
+        <input type="text" id="itemName" placeholder="Ex: Mini Eraser Pack"
+               class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+    </div>
 
-            const config = { 
-                fps: 20, 
-                qrbox: (width, height) => {
-                    return { width: Math.floor(width * 0.85), height: Math.floor(height * 0.4) }
-                },
-                experimentalFeatures: {
-                    useBarCodeDetectorIfSupported: true
-                }
-            };
+    <div id="itemDisplay" class="hidden p-2.5 text-xs rounded-lg font-medium text-center"></div>
 
-            return html5QrcodeScanner.start(
-                cameraConfiguration,
-                config,
-                onScanSuccess
-            ).then(() => {
-                statusMsg.innerText = "Tip: Back away from the object to secure lens focus and adjust the video scale above.";
-                statusMsg.className = "text-[11px] text-gray-400 text-center italic";
-                attachVideoTrack();
-            });
+    <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-lg shadow-sm transition-all">
+      Scan Code First
+    </button>
+  </form>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbyCAfmF6hgDSZhCMr8m6gcaTYRtcwsEkeP9Wh2PlA6UN1d-j1Va7DlhaK8ocdT3lSHO/exec";
+
+    let currentMode = 'purchase';
+    let lastScannedCode = '';
+    let html5QrCode;
+    let availableCameras = [];
+    let currentCameraIndex = 0;
+
+    const statusMsg = document.getElementById('scan-status');
+    const barcodeInput = document.getElementById('scannedBarcode');
+    const poInput = document.getElementById('poNumber');
+    const qtyInput = document.getElementById('receivedQty');
+    const itemInput = document.getElementById('itemName');
+    const purchaseFields = document.getElementById('purchaseFields');
+    const itemDisplay = document.getElementById('itemDisplay');
+    const submitBtn = document.getElementById('submitBtn');
+
+    function setMode(mode) {
+      currentMode = mode;
+      lastScannedCode = '';
+      document.getElementById('terminalForm').reset();
+      itemDisplay.classList.add('hidden');
+      poInput.readOnly = true;
+      poInput.classList.add('bg-slate-100');
+
+      if (mode === 'purchase') {
+        document.getElementById('btnPurchase').className = "flex-1 py-2.5 text-sm font-bold rounded-lg bg-white shadow-sm text-blue-600 transition-all";
+        document.getElementById('btnReceive').className = "flex-1 py-2.5 text-sm font-bold rounded-lg text-slate-600 transition-all";
+        purchaseFields.classList.remove('hidden');
+        poInput.placeholder = "Auto-generating...";
+        document.getElementById('qtyLabel').innerText = "Qty to Order";
+        resetButtonState(true, "Scan Code First");
+      } else {
+        document.getElementById('btnPurchase').className = "flex-1 py-2.5 text-sm font-bold rounded-lg text-slate-600 transition-all";
+        document.getElementById('btnReceive').className = "flex-1 py-2.5 text-sm font-bold rounded-lg bg-white shadow-sm text-blue-600 transition-all";
+        purchaseFields.classList.add('hidden');
+        poInput.placeholder = "Auto-detecting...";
+        document.getElementById('qtyLabel').innerText = "Qty to Receive";
+        resetButtonState(true, "Scan Code First");
+      }
+      updateStatusText();
+    }
+
+    function updateStatusText() {
+      if (!html5QrCode || !html5QrCode.isScanning) return;
+      if (currentMode === 'purchase') {
+        statusMsg.innerText = "🛒 Ready to scan item to generate a new Purchase Order...";
+        statusMsg.className = "text-xs text-blue-600 font-medium mt-2";
+      } else {
+        statusMsg.innerText = "📥 Awaiting target shipment item scan...";
+        statusMsg.className = "text-xs text-amber-600 font-medium mt-2";
+      }
+    }
+
+    function resetButtonState(isDisabled, text, variant = 'slate') {
+      submitBtn.disabled = isDisabled;
+      submitBtn.innerText = text;
+      if (isDisabled) {
+        submitBtn.className = "w-full bg-slate-400 text-white font-bold py-3.5 rounded-lg cursor-not-allowed transition-all";
+      } else if (variant === 'green') {
+        submitBtn.className = "w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-lg shadow-sm cursor-pointer transition-all";
+      } else {
+        submitBtn.className = "w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-lg shadow-sm cursor-pointer transition-all";
+      }
+    }
+
+    async function postData(payload) {
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+        return await response.json();
+      } catch (err) {
+        console.error("Networking failure: ", err);
+        return { success: false, message: "Network connection error." };
+      }
+    }
+
+    function onScanSuccess(decodedText) {
+      if (decodedText === lastScannedCode) return;
+      lastScannedCode = decodedText;
+      barcodeInput.value = decodedText;
+      if (navigator.vibrate) navigator.vibrate(75);
+
+      if (currentMode === 'purchase') {
+        statusMsg.innerText = "🔄 Fetching next available PO Allocation Number...";
+        statusMsg.className = "text-xs text-center text-blue-600 font-medium mt-2";
+        postData({ action: "getNextPo" }).then(res => {
+          if (res.success) {
+            poInput.value = res.nextPo;
+            statusMsg.innerText = "🎯 Ready to allocate new purchase entry!";
+            statusMsg.className = "text-xs text-center text-green-600 font-bold mt-2";
+            resetButtonState(false, "Confirm Purchase Allocation", "blue");
+          } else {
+            alert("Could not generate PO Number automatically.");
+          }
+        });
+      } else {
+        statusMsg.innerText = "🔍 Syncing with active inventory ledger...";
+        statusMsg.className = "text-xs text-center text-blue-600 font-medium mt-2";
+        itemDisplay.classList.add('hidden');
+        resetButtonState(true, "Scanning...");
+
+        postData({ action: "lookup", barcode: decodedText }).then(res => {
+          if (res.success) {
+            poInput.value = res.poNumber;
+            itemDisplay.innerText = "Verified Item: " + res.itemName;
+            itemDisplay.className = "block p-2.5 bg-green-50 text-green-800 text-xs rounded-lg font-semibold text-center border border-green-200";
+            statusMsg.innerText = "🎯 Active Match Confirmed!";
+            statusMsg.className = "text-xs text-center text-green-600 font-bold mt-2";
+            resetButtonState(false, "Confirm Receipt Log", "green");
+          } else {
+            poInput.value = "";
+            itemDisplay.innerText = "Error: " + res.message;
+            itemDisplay.className = "block p-2.5 bg-red-50 text-red-800 text-xs rounded-lg font-semibold text-center border border-red-200";
+            statusMsg.innerText = "❌ Match routing denied.";
+            statusMsg.className = "text-xs text-center text-red-600 font-bold mt-2";
+            resetButtonState(true, "Scan Verified Code First");
+          }
+        });
+      }
+    }
+
+    // --- INITIALIZATION BOOTLOADER ---
+    document.addEventListener("DOMContentLoaded", () => {
+      try {
+        setMode('purchase');
+
+        if (typeof Html5Qrcode === 'undefined') {
+          throw new Error("Scanner library failed to load from CDN resource.");
         }
 
-        async function switchCamera() {
-            if (!availableCameras || availableCameras.length <= 1) return;
-            
-            currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
-            statusMsg.innerText = "🔄 Mapping adjacent hardware stream track...";
-            statusMsg.className = "text-[11px] text-indigo-400 font-medium text-center";
-            
-            try {
-                await executeCameraSession(availableCameras[currentCameraIndex].id);
-            } catch (e) {
-                statusMsg.innerText = "⚠️ Lens selection failed. Dropping to alternative profile...";
-            }
+        html5QrCode = new Html5Qrcode("reader");
+        initializeCameraHardware();
+
+      } catch (globalError) {
+        statusMsg.innerText = "🚨 System Error: " + globalError.message;
+        statusMsg.className = "text-xs text-center text-red-500 font-semibold mt-2";
+      }
+    });
+
+    async function initializeCameraHardware() {
+      try {
+        statusMsg.innerText = "📷 Tuning hardware camera arrays...";
+        
+        // Fetch full camera tracking profiles
+        let devices = await Html5Qrcode.getCameras();
+        
+        // If profile details are blank/unauthorized, trigger a quick system request to unlock them
+        if (!devices || devices.length === 0 || !devices[0].label) {
+          await executeCameraSession({ facingMode: "environment" });
+          devices = await Html5Qrcode.getCameras();
         }
- 
-        function attachVideoTrack() {
-            const videoElement = document.querySelector("#reader video");
-            if (videoElement && videoElement.srcObject) {
-                activeVideoTrack = videoElement.srcObject.getVideoTracks()[0];
-            }
+        
+        if (devices && devices.length > 0) {
+          availableCameras = devices;
+          if (availableCameras.length > 1) {
+            document.getElementById('btnSwitchCamera').classList.remove('hidden');
+          }
+          
+          // Filter out explicitly identified rear environmental lenses
+          let backCams = availableCameras.filter(d => 
+            d.label.toLowerCase().includes('back') || 
+            d.label.toLowerCase().includes('rear') ||
+            d.label.toLowerCase().includes('environment')
+          );
+          
+          if (backCams.length > 0) {
+            // TARGET PRIORITIZATION STRATEGY:
+            // If the phone exposes multiple rear options, choose the second rear camera 
+            // entry to target the high-res auto-focus main lens instead of the wide/macro tracking lens.
+            let bestCam = backCams.length > 1 ? backCams[1] : backCams[0];
+            currentCameraIndex = availableCameras.findIndex(d => d.id === bestCam.id);
+          } else {
+            // General hard-index shift strategy if labels are generic text numbers
+            currentCameraIndex = availableCameras.length > 1 ? 1 : 0;
+          }
+          
+          await executeCameraSession(availableCameras[currentCameraIndex].id);
+        } else {
+          await executeCameraSession({ facingMode: "environment" });
         }
- 
-        function applyZoom(val) {
-            document.getElementById('zoomVal').innerText = parseFloat(val).toFixed(1) + 'x';
-            const videoElement = document.querySelector("#reader video");
-            if(videoElement) {
-                videoElement.style.transform = `scale(${val})`;
-            }
+      } catch (err) {
+        console.warn("Array scanning bypassed, jumping to direct environment routing:", err);
+        try {
+          await executeCameraSession({ facingMode: "environment" });
+        } catch (fallbackErr) {
+          statusMsg.innerText = "❌ Camera Blocked: Check site permissions.";
+          statusMsg.className = "text-xs text-center text-red-500 font-semibold mt-2";
         }
- 
-        function onScanSuccess(decodedText) {
-            const now = Date.now();
-            if (decodedText === lastScannedBarcode && (now - lastScanTimestamp) < DEBOUNCE_THRESHOLD) {
-                return; 
-            }
-            
-            lastScannedBarcode = decodedText;
-            lastScanTimestamp = now;
- 
-            playBeep();
- 
-            document.getElementById('formCode').value = decodedText;
-            document.getElementById('formBarcode').value = decodedText;
- 
-            if (currentMode === 'received') {
-                executeBackendLookup(decodedText);
-            }
+      }
+    }
+
+    async function executeCameraSession(cameraConfiguration) {
+      if (html5QrCode.isScanning) {
+        await html5QrCode.stop();
+      }
+      return html5QrCode.start(
+        cameraConfiguration,
+        { fps: 20, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+        onScanSuccess
+      ).then(() => {
+        updateStatusText();
+      });
+    }
+
+    async function switchCamera() {
+      if (!availableCameras || availableCameras.length <= 1) return;
+      
+      currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
+      statusMsg.innerText = "🔄 Re-routing video track pipeline...";
+      statusMsg.className = "text-xs text-center text-slate-500 font-medium mt-2";
+      
+      try {
+        await executeCameraSession(availableCameras[currentCameraIndex].id);
+      } catch (e) {
+        statusMsg.innerText = "⚠️ Track swap failed. Trying next lens...";
+      }
+    }
+
+    // Form Event Handler Submissions
+    document.getElementById('terminalForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const priorText = submitBtn.innerText;
+      resetButtonState(true, "Transmitting data packages...");
+
+      const dataPayload = {
+        action: currentMode,
+        scannedBarcode: barcodeInput.value,
+        poNumber: poInput.value,
+        itemName: itemInput.value,
+        qty: qtyInput.value,
+        receivedQty: qtyInput.value
+      };
+
+      postData(dataPayload).then(res => {
+        if (res.success) {
+          alert(res.message);
+          setMode(currentMode);
+        } else {
+          alert("Processing warning: " + res.message);
+          resetButtonState(false, priorText);
         }
- 
-        async function executeBackendLookup(barcode) {
-            const nameInput = document.getElementById('formName');
-            nameInput.value = "Searching Database...";
-            
-            try {
-                const response = await fetch(`${API_URL}?action=lookup&barcode=${encodeURIComponent(barcode)}`);
-                const result = await response.json();
-                
-                if(result.status === "success") {
-                    nameInput.value = result.data.itemName;
-                } else {
-                    nameInput.value = "";
-                    alert("System cross-reference lookup failed: Product record missing.");
-                }
-            } catch(e) {
-                nameInput.value = "";
-                alert("Network communication timeout handling lookup verification.");
-            }
-        }
- 
-        async function submitTransaction(e) {
-            e.preventDefault();
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.disabled = true;
-            submitBtn.innerText = "Transmitting to Google Cloud Engine...";
- 
-            const payload = {
-                mode: currentMode,
-                data: {
-                    code: document.getElementById('formCode').value,
-                    barcode: document.getElementById('formBarcode').value,
-                    name: document.getElementById('formName').value,
-                    qty: document.getElementById('formQty').value,
-                    condition: document.getElementById('formCondition').value
-                }
-            };
- 
-            try {
-                await fetch(API_URL, {
-                    method: 'POST',
-                    mode: 'no-cors', 
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                alert("Operation submitted safely to cloud records stack.");
-                clearForm();
-            } catch(err) {
-                alert("Error writing database transaction framework record.");
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerText = "Commit Operations Transaction";
-            }
-        }
- 
-        function clearForm() {
-            document.getElementById('formCode').value = "";
-            document.getElementById('formBarcode').value = "";
-            document.getElementById('formName').value = "";
-            document.getElementById('formQty').value = "1";
-            document.getElementById('formCondition').value = "Good";
-            lastScannedBarcode = null;
-        }
- 
-        function playBeep() {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = "sine";
-            osc.frequency.setValueAtTime(880, ctx.currentTime); 
-            gain.gain.setValueAtTime(0.1, ctx.currentTime);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.12);
-        }
- 
-        window.addEventListener('DOMContentLoaded', initScanner);
-    </script>
+      });
+    });
+  </script>
 </body>
 </html>
