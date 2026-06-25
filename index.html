@@ -200,7 +200,17 @@
     const html5QrCode = new Html5Qrcode("reader");
     html5QrCode.start(
       { facingMode: "environment" },
-      { fps: 15, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 },
+      { 
+        fps: 20, // Increase frame rate for sharper captures
+        qrbox: { width: 250, height: 250 }, // Slightly larger scan box
+        aspectRatio: 1.0,
+        // Force a higher video capture resolution profile
+        videoConstraints: {
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          advanced: [{ autofocus: "continuous" }] // Request hardware continuous focus
+        }
+      },
       onScanSuccess
     ).then(() => {
       setMode('purchase');
