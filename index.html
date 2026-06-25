@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PO Warehouse Receiver</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body class="bg-slate-50 p-4 font-sans max-w-md mx-auto">
+
+  <h1 class="text-xl font-bold text-center text-slate-800 mb-4">📥 PO Receiving Terminal</h1>
+
+  <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200 mb-4">
+    <div id="reader" class="w-full bg-slate-100 rounded-lg overflow-hidden"></div>
+    <p id="scan-status" class="text-xs text-center text-slate-500 mt-2">Initializing camera sensor...</p>
+  </div>
+
+  <form id="receivingForm" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 uppercase">Scanned Barcode</label>
+      <input type="text" id="scannedBarcode" readonly required
+             class="w-full mt-1 p-2.5 bg-slate-100 border border-slate-300 rounded-lg text-slate-700 font-mono focus:outline-none">
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 uppercase">PO Association</label>
+        <input type="text" id="poNumber" readonly required placeholder="Auto-detecting..."
+               class="w-full mt-1 p-2.5 bg-slate-100 border border-slate-300 rounded-lg text-slate-700 font-bold focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 uppercase">Qty to Receive</label>
+        <input type="number" id="receivedQty" value="1" min="1" required
+               class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+    </div>
+
+    <div id="itemDisplay" class="hidden p-2.5 bg-blue-50 text-blue-800 text-xs rounded-lg font-medium text-center"></div>
+
+    <button type="submit" id="submitBtn" disabled class="w-full bg-slate-400 text-white font-semibold py-3 rounded-lg cursor-not-allowed transition">
+      Scan Code First
+    </button>
+  </form>
+
+  <script>
+    // ==========================================
+    // PASTE YOUR GOOGLE APPS SCRIPT URL BELOW:
+    // ==========================================
+    const API_URL = "YOUR_GOOGLE_WEB_APP_URL_HERE";
+
+    const statusMsg = document.getElementById('scan-status');
+    const barcodeInput = document.getElementById('scannedBarcode');
+    const poInput = document.getElementById('poNumber');
+    const itemDisplay = document.getElementById('itemDisplay');
+    const submitBtn = document.getElementById('submitBtn');
+
+    // Utility function to communicate with Google Sheets Backend safely
+    async function fetchFromGoogle(payload) {
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          // Using text/plain prevents strict CORS preflight blocking in Apps Script
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload),
+          redirect: 'follow'
+        });
+        return await response.json();
+      } catch (error) {
+        console.error("Fetch error:", error);
+        return { success: false, message: "Network connection error." };
+      }
+    }
+
+    // Camera Scanner Logic
+    function onScanSuccess(decodedText) {
+      if (barcodeInput.value === decodedText) return; 
+      
+      barcodeInput.value = decodedText;
+      statusMsg.innerText = "🔍 Checking Purchase Orders...";
+      statusMsg.className = "text-xs text-center text-amber-600 font-medium mt-2";
+      if (navigator.vibrate) navigator.vibrate(80);
+
+      fetchFromGoogle({ action: "lookup", barcode: decodedText })
+        .then(res => {
+          if (res.success) {
+            poInput.value = res.poNumber;
+            itemDisplay.innerText = "Item Name: " + res.itemName;
+            itemDisplay.classList.remove('hidden');
+            statusMsg.innerText = "🎯 Match verified!";
+            statusMsg.className = "text-xs text-center text-green-600 font-bold mt-2";
+            
+            submitBtn.disabled = false;
+            submitBtn.className = "w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg shadow-sm cursor-pointer transition";
+            submitBtn.innerText = "Accept Delivery";
+          } else {
+            resetFormState();
+            statusMsg.innerText = "❌ " + res.message;
+            statusMsg.className = "text-xs text-center text-red-600 font-bold mt-2";
+          }
+        });
+    }
+
+    function resetFormState() {
+      poInput.value = "";
+      itemDisplay.classList.add('hidden');
+      submitBtn.disabled = true;
+      submitBtn.className = "w-full bg-slate-400 text-white font-semibold py-3 rounded-lg cursor-not-allowed transition";
+      submitBtn.innerText = "Scan Code First";
+    }
+
+    // Initialize Camera Sensor
+    const html5QrCode = new Html5Qrcode("reader");
+    html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 12, qrbox: { width: 220, height: 220 } },
+      onScanSuccess
+    ).then(() => {
+      statusMsg.innerText = "🎥 Camera active. Ready to scan!";
+      statusMsg.className = "text-xs text-center text-green-600 font-medium mt-2";
+    }).catch(err => {
+      statusMsg.innerText = "⚠️ Camera Blocked: Please allow permissions.";
+      statusMsg.className = "text-xs text-center text-red-500 font-medium mt-2";
+    });
+
+    // Form Submission Logic
+    document.getElementById('receivingForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      submitBtn.innerText = "Processing pipeline...";
+
+      const submitData = {
+        action: "log",
+        poNumber: poInput.value,
+        scannedBarcode: barcodeInput.value,
+        receivedQty: document.getElementById('receivedQty').value
+      };
+
+      fetchFromGoogle(submitData).then(res => {
+        if (res.success) {
+          alert(res.message);
+          document.getElementById('receivingForm').reset();
+          resetFormState();
+          statusMsg.innerText = "Ready for next shipment item...";
+          statusMsg.className = "text-xs text-center text-slate-500 mt-2";
+        } else {
+          alert("Error: " + res.message);
+          submitBtn.disabled = false;
+          submitBtn.innerText = "Accept Delivery";
+        }
+      });
+    });
+  </script>
+</body>
+</html>
