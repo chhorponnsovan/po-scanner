@@ -3,65 +3,242 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Warehouse Terminal</title>
+  <title>PO Warehouse Terminal</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    /* Prevents the phone's native video feed from stretching out of bounds */
+    #reader {
+      width: 100% !important;
+      border: none !important;
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+    #reader video {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+      border-radius: 0.75rem;
+    }
+  </style>
 </head>
 <body class="bg-slate-50 p-4 font-sans max-w-md mx-auto">
-  <h1 class="text-xl font-bold text-center text-slate-800 mb-4">📦 Warehouse Terminal</h1>
 
-  <div class="flex bg-slate-200 p-1 rounded-lg mb-4">
-    <button id="btnPurchase" onclick="setMode('purchase')" class="flex-1 py-2 font-bold rounded-md bg-white shadow-sm text-blue-700">Purchase Mode</button>
-    <button id="btnReceive" onclick="setMode('receive')" class="flex-1 py-2 font-bold rounded-md text-slate-600">Receive Mode</button>
+  <h1 class="text-xl font-bold text-center text-slate-800 mb-4">⚙️ Warehouse Management Terminal</h1>
+
+  <div class="flex bg-slate-200 p-1 rounded-xl mb-4 border border-slate-300">
+    <button id="btnPurchase" onclick="setMode('purchase')" class="flex-1 py-2.5 text-sm font-bold rounded-lg bg-white shadow-sm text-blue-600 transition-all">
+      🛒 Purchase Mode
+    </button>
+    <button id="btnReceive" onclick="setMode('receive')" class="flex-1 py-2.5 text-sm font-bold rounded-lg text-slate-600 transition-all">
+      📥 Receive Mode
+    </button>
   </div>
 
-  <div class="bg-white p-3 rounded-lg shadow-sm border mb-4">
-    <div id="reader" class="w-full h-48 bg-slate-100 rounded-lg overflow-hidden"></div>
-    <p id="scan-status" class="text-xs text-center text-slate-500 mt-2">Ready to scan</p>
+  <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200 mb-4">
+    <div id="reader" class="w-full bg-slate-100 overflow-hidden"></div>
+    <p id="scan-status" class="text-xs text-center text-slate-500 mt-2 font-medium">Initializing camera stream...</p>
   </div>
 
-  <form id="mainForm" class="bg-white p-4 rounded-xl border space-y-3">
-    <input type="text" id="scannedBarcode" readonly placeholder="Barcode" class="w-full p-2 bg-slate-100 border rounded-lg font-mono">
-    <input type="text" id="poNumber" placeholder="PO Number" class="w-full p-2 border rounded-lg">
-    
-    <div id="extraFields" class="space-y-3">
-      <input type="text" id="itemName" placeholder="Item Name" class="w-full p-2 border rounded-lg">
-      <input type="number" id="qty" placeholder="Quantity" class="w-full p-2 border rounded-lg">
+  <form id="terminalForm" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Scanned Barcode</label>
+      <input type="text" id="scannedBarcode" readonly required
+             class="w-full mt-1 p-2.5 bg-slate-100 border border-slate-300 rounded-lg text-slate-700 font-mono focus:outline-none">
     </div>
-    
-    <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold">Confirm Purchase</button>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label id="poLabel" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">PO Association</label>
+        <input type="text" id="poNumber" required placeholder="Enter PO..."
+               class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-slate-700 font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+      <div>
+        <label id="qtyLabel" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Qty to Order</label>
+        <input type="number" id="receivedQty" value="1" min="1" required
+               class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+    </div>
+
+    <div id="purchaseFields" class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Item Name Description</label>
+        <input type="text" id="itemName" placeholder="Ex: Micro-controller Variant A"
+               class="w-full mt-1 p-2.5 border border-slate-300 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+    </div>
+
+    <div id="itemDisplay" class="hidden p-2.5 text-xs rounded-lg font-medium text-center"></div>
+
+    <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-lg shadow-sm transition-all">
+      Confirm Purchase Allocation
+    </button>
   </form>
 
   <script>
-    const API_URL = "PASTE_YOUR_WEB_APP_URL_HERE";
-    let currentMode = 'purchase';
+    // =========================================================
+    // PASTE YOUR EXTRACTED APPS SCRIPT DEPLOYMENT WEB URL BELOW
+    // =========================================================
+    const API_URL = "https://script.google.com/macros/s/AKfycbyCAfmF6hgDSZhCMr8m6gcaTYRtcwsEkeP9Wh2PlA6UN1d-j1Va7DlhaK8ocdT3lSHO/exec";
 
+    let currentMode = 'purchase';
+    let lastScannedCode = '';
+
+    const statusMsg = document.getElementById('scan-status');
+    const barcodeInput = document.getElementById('scannedBarcode');
+    const poInput = document.getElementById('poNumber');
+    const qtyInput = document.getElementById('receivedQty');
+    const itemInput = document.getElementById('itemName');
+    const purchaseFields = document.getElementById('purchaseFields');
+    const itemDisplay = document.getElementById('itemDisplay');
+    const submitBtn = document.getElementById('submitBtn');
+
+    // Controls Layout States across functions dynamically
     function setMode(mode) {
       currentMode = mode;
-      document.getElementById('btnPurchase').className = mode === 'purchase' ? 'flex-1 py-2 font-bold rounded-md bg-white shadow-sm text-blue-700' : 'flex-1 py-2 font-bold rounded-md text-slate-600';
-      document.getElementById('btnReceive').className = mode === 'receive' ? 'flex-1 py-2 font-bold rounded-md bg-white shadow-sm text-blue-700' : 'flex-1 py-2 font-bold rounded-md text-slate-600';
-      document.getElementById('extraFields').classList.toggle('hidden', mode !== 'purchase');
-      document.getElementById('submitBtn').innerText = mode === 'purchase' ? "Confirm Purchase" : "Confirm Receipt";
+      lastScannedCode = '';
+      document.getElementById('terminalForm').reset();
+      itemDisplay.classList.add('hidden');
+
+      if (mode === 'purchase') {
+        document.getElementById('btnPurchase').className = "flex-1 py-2.5 text-sm font-bold rounded-lg bg-white shadow-sm text-blue-600 transition-all";
+        document.getElementById('btnReceive').className = "flex-1 py-2.5 text-sm font-bold rounded-lg text-slate-600 transition-all";
+        statusMsg.innerText = "🛒 Ready to scan barcode configurations for new order...";
+        statusMsg.className = "text-xs text-center text-blue-600 font-medium mt-2";
+        
+        // Setup fields for Manual Input Entry
+        purchaseFields.classList.remove('hidden');
+        poInput.readOnly = false;
+        poInput.placeholder = "Enter PO Number";
+        poInput.classList.remove('bg-slate-100');
+        document.getElementById('qtyLabel').innerText = "Qty to Order";
+        submitBtn.innerText = "Confirm Purchase Allocation";
+        submitBtn.disabled = false;
+        submitBtn.className = "w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-lg shadow-sm cursor-pointer transition-all";
+      } else {
+        document.getElementById('btnPurchase').className = "flex-1 py-2.5 text-sm font-bold rounded-lg text-slate-600 transition-all";
+        document.getElementById('btnReceive').className = "flex-1 py-2.5 text-sm font-bold rounded-lg bg-white shadow-sm text-blue-600 transition-all";
+        statusMsg.innerText = "📥 Awaiting target shipment item scan...";
+        statusMsg.className = "text-xs text-center text-amber-600 font-medium mt-2";
+        
+        // Setup fields for locked Verification pipeline checking
+        purchaseFields.classList.add('hidden');
+        poInput.readOnly = true;
+        poInput.placeholder = "Auto-detecting from sheet...";
+        poInput.classList.add('bg-slate-100');
+        document.getElementById('qtyLabel').innerText = "Qty to Receive";
+        resetReceiveButtonState(true);
+      }
     }
 
+    function resetReceiveButtonState(isDisabled) {
+      if (isDisabled) {
+        submitBtn.disabled = true;
+        submitBtn.className = "w-full bg-slate-400 text-white font-bold py-3.5 rounded-lg cursor-not-allowed transition-all";
+        submitBtn.innerText = "Scan Verified Code First";
+      } else {
+        submitBtn.disabled = false;
+        submitBtn.className = "w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-lg shadow-sm cursor-pointer transition-all";
+        submitBtn.innerText = "Confirm Receipt Log";
+      }
+    }
+
+    // Pipeline communication agent handler
+    async function postData(payload) {
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+        return await response.json();
+      } catch (err) {
+        console.error("Networking tracking failure: ", err);
+        return { success: false, message: "Network structural disconnection error." };
+      }
+    }
+
+    // Processing Callback Matrix for Active Scanner Hardware
+    function onScanSuccess(decodedText) {
+      if (decodedText === lastScannedCode) return;
+      lastScannedCode = decodedText;
+      
+      barcodeInput.value = decodedText;
+      if (navigator.vibrate) navigator.vibrate(75);
+
+      if (currentMode === 'purchase') {
+        statusMsg.innerText = "🎯 Barcode captured! Enter PO and Item Details below.";
+        statusMsg.className = "text-xs text-center text-green-600 font-semibold mt-2";
+      } else {
+        // Run verify search against inventory row data targets
+        statusMsg.innerText = "🔍 Syncing with active inventory ledger...";
+        statusMsg.className = "text-xs text-center text-blue-600 font-medium mt-2";
+        itemDisplay.classList.add('hidden');
+        resetReceiveButtonState(true);
+
+        postData({ action: "lookup", barcode: decodedText }).then(res => {
+          if (res.success) {
+            poInput.value = res.poNumber;
+            itemDisplay.innerText = "Verified Item: " + res.itemName;
+            itemDisplay.className = "block p-2.5 bg-green-50 text-green-800 text-xs rounded-lg font-semibold text-center border border-green-200";
+            statusMsg.innerText = "🎯 Active Match Confirmed!";
+            statusMsg.className = "text-xs text-center text-green-600 font-bold mt-2";
+            resetReceiveButtonState(false);
+          } else {
+            poInput.value = "";
+            itemDisplay.innerText = "Verification Failure: " + res.message;
+            itemDisplay.className = "block p-2.5 bg-red-50 text-red-800 text-xs rounded-lg font-semibold text-center border border-red-200";
+            statusMsg.innerText = "❌ Match routing denied.";
+            statusMsg.className = "text-xs text-center text-red-600 font-bold mt-2";
+          }
+        });
+      }
+    }
+
+    // Initialize Camera Sensor with precise constraints to prevent stretch bugs
     const html5QrCode = new Html5Qrcode("reader");
-    html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 200 }, (text) => {
-      document.getElementById('scannedBarcode').value = text;
-      document.getElementById('scan-status').innerText = "Scanned: " + text;
+    html5QrCode.start(
+      { facingMode: "environment" },
+      { 
+        fps: 15, 
+        qrbox: { width: 220, height: 220 },
+        aspectRatio: 1.0 // Locks execution processing to a strict square aspect canvas
+      },
+      onScanSuccess
+    ).then(() => {
+      statusMsg.innerText = "🎥 Video matrix online. Ready for target tracking.";
+    }).catch(err => {
+      statusMsg.innerText = "⚠️ Camera Blocked: Verify browser/system privacy settings.";
+      statusMsg.className = "text-xs text-center text-red-500 font-semibold mt-2";
     });
 
-    document.getElementById('mainForm').addEventListener('submit', async (e) => {
+    // Handle Active Form Submission Routing Formats
+    document.getElementById('terminalForm').addEventListener('submit', function(e) {
       e.preventDefault();
-      const payload = {
+      
+      const previousBtnText = submitBtn.innerText;
+      submitBtn.disabled = true;
+      submitBtn.innerText = "Transmitting packet logs...";
+
+      const dataPayload = {
         action: currentMode,
-        scannedBarcode: document.getElementById('scannedBarcode').value,
-        poNumber: document.getElementById('poNumber').value,
-        itemName: document.getElementById('itemName').value,
-        receivedQty: document.getElementById('qty').value,
-        qty: document.getElementById('qty').value
+        scannedBarcode: barcodeInput.value,
+        poNumber: poInput.value,
+        itemName: itemInput.value,
+        receivedQty: qtyInput.value
       };
-      const res = await (await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) })).json();
-      alert(res.message);
+
+      postData(dataPayload).then(res => {
+        if (res.success) {
+          alert(res.message);
+          document.getElementById('terminalForm').reset();
+          setMode(currentMode); // Reset view contextual forms cleanly
+        } else {
+          alert("Pipeline processing warning: " + res.message);
+          submitBtn.disabled = false;
+          submitBtn.innerText = previousBtnText;
+        }
+      });
     });
   </script>
 </body>
