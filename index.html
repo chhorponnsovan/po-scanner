@@ -78,7 +78,7 @@
     // =========================================================
     // PASTE YOUR EXTRACTED APPS SCRIPT DEPLOYMENT WEB URL BELOW
     // =========================================================
-    const API_URL = "https://script.google.com/macros/s/AKfycbyCAfmF6hgDSZhCMr8m6gcaTYRtcwsEkeP9Wh2PlA6UN1d-j1Va7DlhaK8ocdT3lSHO/exec";
+    const API_URL = "YOUR_NEW_APPS_SCRIPT_URL_HERE";
 
     let currentMode = 'purchase';
     let lastScannedCode = '';
@@ -196,60 +196,57 @@
         });
       }
     }
+
+    // --- NEW ROBUST HARDWARE CAMERA INITIALIZATION ---
     const html5QrCode = new Html5Qrcode("reader");
-    html5QrCode.start(
-      // Strictly enforce the back/environment camera using standard constraints
-      { facingMode: { exact: "environment" } },
-      { 
-        fps: 20, 
-        qrbox: { width: 250, height: 250 }, 
-        aspectRatio: 1.0,
-        // Provide a clean, direct resolution fallback path
-        videoConstraints: {
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      },
-      onScanSuccess
-    ).then(() => {
-      setMode('purchase');
+
+    Html5Qrcode.getCameras().then(devices => {
+      if (devices && devices.length) {
+        // Look for a device label containing back, rear, or environment clues
+        let backCamera = devices.find(device => 
+          device.label.toLowerCase().includes('back') || 
+          device.label.toLowerCase().includes('rear') ||
+          device.label.toLowerCase().includes('environment')
+        );
+        
+        // Default to the last hardware ID in the array if no label matches
+        const targetCameraId = backCamera ? backCamera.id : devices[devices.length - 1].id;
+
+        html5QrCode.start(
+          targetCameraId,
+          { 
+            fps: 20, 
+            qrbox: { width: 250, height: 250 }, 
+            aspectRatio: 1.0
+          },
+          onScanSuccess
+        ).then(() => {
+          setMode('purchase');
+        }).catch(err => {
+          console.error("Direct device ID initialization failed, trying fallback...", err);
+          runStandardFallback();
+        });
+      } else {
+        runStandardFallback();
+      }
     }).catch(err => {
-      // Fallback: If 'exact' environment fails (rare), try normal environment selection
-      console.warn("Exact environment camera failed, trying fallback...", err);
-      
+      runStandardFallback();
+    });
+
+    function runStandardFallback() {
       html5QrCode.start(
         { facingMode: "environment" },
         { fps: 20, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
         onScanSuccess
       ).then(() => {
         setMode('purchase');
-      }).catch(fallbackErr => {
-        statusMsg.innerText = "⚠️ Camera Blocked: Verify device settings.";
+      }).catch(err => {
+        statusMsg.innerText = "⚠️ Camera Blocked: Verify device settings or clear cache.";
         statusMsg.className = "text-xs text-center text-red-500 font-semibold mt-2";
       });
-    });
-    const html5QrCode = new Html5Qrcode("reader");
-    html5QrCode.start(
-      { facingMode: "environment" },
-      { 
-        fps: 20, 
-        qrbox: { width: 250, height: 250 }, 
-        aspectRatio: 1.0,
-        videoConstraints: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          advanced: [{ autofocus: "continuous" }]
-        }
-      },
-      onScanSuccess
-    ).then(() => {
-      setMode('purchase');
-    }).catch(err => {
-      statusMsg.innerText = "⚠️ Camera Blocked: Verify device settings.";
-      statusMsg.className = "text-xs text-center text-red-500 font-semibold mt-2";
-    });
+    }
 
+    // Form Submission Logic
     document.getElementById('terminalForm').addEventListener('submit', function(e) {
       e.preventDefault();
       
