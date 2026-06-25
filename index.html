@@ -201,14 +201,13 @@
     html5QrCode.start(
       { facingMode: "environment" },
       { 
-        fps: 20, // Increase frame rate for sharper captures
-        qrbox: { width: 250, height: 250 }, // Slightly larger scan box
+        fps: 20, 
+        qrbox: { width: 250, height: 250 }, 
         aspectRatio: 1.0,
-        // Force a higher video capture resolution profile
         videoConstraints: {
           width: { ideal: 1920 },
           height: { ideal: 1080 },
-          advanced: [{ autofocus: "continuous" }] // Request hardware continuous focus
+          advanced: [{ autofocus: "continuous" }]
         }
       },
       onScanSuccess
